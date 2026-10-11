@@ -1,0 +1,44 @@
+name: CI
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  ci-gate:
+    name: ci-gate
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Validate machine recovery
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || format('origin/{0}', github.event.repository.default_branch) }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RECOVERY_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 .machine-recovery/check.py --event-name "$EVENT_NAME" --base "$BASE_SHA" --head "$HEAD_SHA" --repository "$RECOVERY_REPOSITORY"
+          python3 .machine-recovery/test_check.py
+
+      - name: Classify changed paths
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 .machine-recovery/ci_change_scope.py --event-name "$EVENT_NAME" --base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT"
+      - name: Validate documentation-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: git diff --check "${{ steps.scope.outputs.base_sha }}" "${{ steps.scope.outputs.head_sha }}" --
+      - name: Validate full policy contracts
+        if: steps.scope.outputs.docs_only != 'true'
+        run: python3 .machine-recovery/test_ci_change_scope.py
