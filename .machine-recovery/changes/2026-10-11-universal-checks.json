@@ -1,0 +1,9 @@
+{
+  "repository": "azuttre/try_git",
+  "diff_sha256": "a6f23c9c05ed355a6b8c8ae381989226bdc0ee9b8cbfa77b10a6eadd9ed43f67",
+  "disposition": "updated",
+  "reason": "Install and recovery maintenance now require an exact-change disposition, unconditional CI validation and matching consolidated owner documentation before merge.",
+  "owned_records": [
+    ".machine-recovery/README.md"
+  ]
+}
