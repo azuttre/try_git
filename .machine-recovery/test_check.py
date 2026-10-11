@@ -52,6 +52,23 @@ class RecoveryGateTests(unittest.TestCase):
         policy, paths, digest, receipts, changed, baseline = gate.inspect(self.root, self.base)
         return gate.validate_receipt(policy, paths, digest, receipts, changed)
 
+    def test_manual_branch_change_requires_exact_disposition(self):
+        self.change()
+        with self.assertRaisesRegex(ValueError, 'one recovery disposition'):
+            gate.main(['--repo', str(self.root), '--base', self.base,
+                       '--event-name', 'workflow_dispatch', '--repository', 'owner/repo'])
+        self.receipt()
+        self.assertEqual(gate.main(['--repo', str(self.root), '--base', self.base,
+                                  '--event-name', 'workflow_dispatch', '--repository', 'owner/repo']), 0)
+
+    def test_manual_default_head_and_identity(self):
+        args = ['--repo', str(self.root), '--base', self.base, '--event-name', 'workflow_dispatch']
+        self.assertEqual(gate.main(args + ['--repository', 'owner/repo']), 0)
+        with self.assertRaisesRegex(ValueError, 'repository does not match'):
+            gate.main(args + ['--repository', 'other/repo'])
+        with self.assertRaisesRegex(ValueError, 'nonempty base'):
+            gate.main(['--repo', str(self.root), '--event-name', 'workflow_dispatch'])
+
     def test_source_change_without_disposition_blocks(self):
         self.change()
         with self.assertRaisesRegex(ValueError, 'one recovery disposition'):
@@ -80,6 +97,11 @@ class RecoveryGateTests(unittest.TestCase):
         self.write(gate.CHANGES + 'duplicate.json', (self.root / (gate.CHANGES + 'change.json')).read_text())
         self.git('add', '.'); self.git('commit', '-qm', 'duplicate')
         with self.assertRaisesRegex(ValueError, 'one recovery disposition'): self.check()
+
+    def test_non_json_source_in_evidence_folder_requires_disposition(self):
+        self.change(gate.CHANGES + 'source.py')
+        with self.assertRaisesRegex(ValueError, 'one recovery disposition'):
+            self.check()
 
     def test_generated_data_only_needs_no_disposition(self):
         self.change('data/history.csv')

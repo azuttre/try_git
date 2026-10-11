@@ -66,7 +66,7 @@ def changed_paths(before, after):
 def change_digest(before, after, policy):
     # Blob IDs, modes and paths are reproducible across diff/CRLF/rename settings.
     paths = [p for p in changed_paths(before, after)
-             if not p.startswith(CHANGES)
+             if not (p.startswith(CHANGES) and p.endswith('.json'))
              and not any(p.startswith(x) for x in
                          policy.get('generated_paths', []) + policy.get('evidence_paths', []))]
     payload = [[p, before.get(p), after.get(p)] for p in paths]
@@ -123,11 +123,6 @@ def main(argv=None):
     parser.add_argument('--repository')
     args = parser.parse_args(argv)
     root = args.repo.resolve()
-    if args.event_name in {'workflow_dispatch', 'schedule'}:
-        policy = json.loads(read(root, args.head, POLICY))
-        validate_policy(policy, tree(root, args.head))
-        print('Recovery policy and owner references passed; no change disposition claimed.')
-        return 0
     base = args.base
     if args.staged and not base:
         base = 'origin/' + git(root, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD').decode().strip().split('/', 1)[1]
